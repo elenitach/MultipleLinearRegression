@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Web.UI.DataVisualization.Charting;
 
 namespace MultipleLinearRegression
 {
@@ -30,6 +31,16 @@ namespace MultipleLinearRegression
             parametersIndexes = new List<int>(p);
         }
         
+        public void BuildMatrixX(List<List<double>> chosenDataX)
+        {
+            X = new double[chosenDataX[0].Count, parametersIndexes.Count + 1];
+            for (int i = 0; i < X.GetLength(0); i++)
+                X[i, 0] = 1;
+            for (int i = 0; i < X.GetLength(0); i++)
+                for (int j = 1; j < X.GetLength(1); j++)
+                    X[i, j] = chosenDataX[parametersIndexes[j - 1]][i];
+        }
+
         public void BuildEquation()
         {
             if (parametersIndexes.Count > 0)
@@ -118,6 +129,104 @@ namespace MultipleLinearRegression
             correctedDetermCoeffsArray[year] = annualDetermCoeff;           
 
         }
+
+        public void RemoveInsignificantParameters(
+            List<List<double>> chosenDataX, List<List<double>> chosenDataY, 
+            double correlstionCoefficient)
+        {
+            for (int i = parametersIndexes.Count - 1; i >= 0; i--)
+            {
+                if (Math.Abs(
+                    Statistics.CorrelationCoefficient(
+                        chosenDataX[parametersIndexes[i]], chosenDataY[0])) < correlstionCoefficient)
+                    parametersIndexes.RemoveAt(i);
+            }
+        }
+
+        public void ModifyModel(
+            List<int> coeffsIndexes, int idx, double[] unchangedCoeffs, 
+            List<List<double>> chosenDataY, double alpha)
+        {
+            if (idx == coeffsIndexes.Count || CheckModelSignificance(true, unchangedCoeffs, chosenDataY, alpha))
+                return;
+
+            double coeff = coefficients[coeffsIndexes[idx]];
+            coefficients[coeffsIndexes[idx]] = 0;
+            ModifyModel(coeffsIndexes, idx + 1, unchangedCoeffs, chosenDataY, alpha);
+
+            if (isSignificant)
+                return;
+
+            coefficients[coeffsIndexes[idx]] = coeff;
+            ModifyModel(coeffsIndexes, idx + 1, unchangedCoeffs, chosenDataY, alpha);
+        }
+
+        public bool CheckModelSignificance(
+            bool isModified, double[] unchangedCoeffs, List<List<double>> chosenDataY, double alpha)
+        {
+            double maxCoeff = 0;
+            for (int i = 1; i < coefficients.Length; i++)
+                if (Math.Abs(coefficients[i]) > maxCoeff)
+                    maxCoeff = Math.Abs(coefficients[i]);
+            if (maxCoeff < 0.000001)
+            {
+                unchangedCoeffs.CopyTo(coefficients, 0);
+                return isSignificant = false;
+            }
+
+            PredictY();
+            determCoeff = Statistics.DeterminationCoefficient(Y, predictedY);
+            correctedDetermCoeff = Statistics.CorrectedDeterminationCoefficient(
+                Y, predictedY, parametersIndexes.Count);
+
+            double Ft, Ff;
+            int n = chosenDataY[0].Count;
+            int m = parametersIndexes.Count; // число параметров модели
+            Ff = (determCoeff / m) / ((1 - determCoeff) / (n - m - 1));
+
+            Chart c = new Chart();
+            Ft = c.DataManipulator.Statistics.InverseFDistribution(alpha, m, n - m - 1);
+
+            isSignificant = Ff > Ft;
+
+            if (!isSignificant && !isModified)
+            {
+                CheckCoefficientsSignificance(unchangedCoeffs, chosenDataY, alpha);
+            }
+
+            return isSignificant;
+        }
+
+        public void CheckCoefficientsSignificance(
+            double[] unchangedCoeffs, List<List<double>> chosenDataY, double alpha)
+        {
+            List<int> insignificantCoeffsIndexes = new List<int>();
+
+            for (int i = 0; i < parametersIndexes.Count; i++)
+            {
+                bool isSignificant = true;
+                double SSres = Y.Zip(predictedY, (y, p) => Math.Pow(y - p, 2.0)).Sum();
+                int n = chosenDataY[0].Count;
+                int m = parametersIndexes.Count;
+                // стандартная ошибка
+                double sigma = SSres / (n - m - 1);
+                // стандартная ошибка оценки i+1-го коэф-та
+                double S_bi = Math.Sqrt(XTXinv[i + 1, i + 1] * sigma);
+                // вычисленное значение Т-статистики
+                double Tf = coefficients[i + 1] / S_bi;
+                Chart c = new Chart();
+                // табличное значение Т-статистики
+                double Tt = c.DataManipulator.Statistics.InverseTDistribution(alpha, n - m - 1);
+                isSignificant = Tf > Tt;
+
+                if (!isSignificant)
+                    insignificantCoeffsIndexes.Add(i);
+            }
+
+            ModifyModel(insignificantCoeffsIndexes, 0, unchangedCoeffs, chosenDataY, alpha);
+        }
+
+        
 
     }
 }

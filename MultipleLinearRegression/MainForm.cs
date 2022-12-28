@@ -24,7 +24,6 @@ namespace MultipleLinearRegression
         Model bestModel;
         Model robustModel;
         Model chosenForControlModel;
-        NonLinearRegression nonLinearRegression;
 
         public MainForm()
         {
@@ -112,161 +111,7 @@ namespace MultipleLinearRegression
                 return cell.Value.ToString();
             return "";
         }
-
-        // создает все возможные модели, выбирая по одному параметру из каждой группы коррелированных
-        void CreateModels(int groupIdx, List<int> modelParameters)
-        {
-            if (groupIdx==groupsOfCorrelatedParameters.Count)
-            {
-                Model model = new Model(modelParameters);
-                models.Add(model);
-                return;
-            }
-
-            foreach (int p in groupsOfCorrelatedParameters[groupIdx])
-            {
-                modelParameters.Add(p);
-                CreateModels(groupIdx + 1, modelParameters);
-                modelParameters.RemoveAt(modelParameters.Count - 1);
-            }
-        }
-
-
-        void CreateGroupsOfCorrelatedParameters(List<List<double>> data)
-        {
-            double[,] correlMatrix = new double[data.Count,data.Count];
-            for (int i = 0; i < data.Count; i++)
-                for (int j = i + 1; j < data.Count; j++)
-                    correlMatrix[i,j] = (Math.Abs(Statistics.CorrelationCoefficient(data[i], data[j])) >= (double)numCorrelX.Value) ? 1 : 0;
-                       
-            groupsOfCorrelatedParameters = new List<List<int>>();
-            for (int i = 0; i < data.Count; i++)
-            {
-                List<int> group = new List<int>();
-                group.Add(i);
-                for (int j = i + 1; j < data.Count; j++)
-                {                    
-                    if (correlMatrix[i, j] == 1)
-                        group.Add(j);
-                }
-                groupsOfCorrelatedParameters.Add(group);
-            }
-
-            for (int i=0; i<groupsOfCorrelatedParameters.Count; i++)
-                for (int j=i+1; j<groupsOfCorrelatedParameters.Count; j++)
-                {
-                    var res = groupsOfCorrelatedParameters[i].Intersect(groupsOfCorrelatedParameters[j]);
-                    if (res.Count()!=0)
-                    {
-                        var res_ = groupsOfCorrelatedParameters[j].Except(groupsOfCorrelatedParameters[i]);
-                        groupsOfCorrelatedParameters[i].AddRange(res_);
-                        groupsOfCorrelatedParameters.RemoveAt(j);
-                        i--;
-                        break;
-                    }
-                }
-        }
-
-        void RemoveInsignificantParameters(Model model)
-        {
-            for (int i = model.parametersIndexes.Count-1; i>=0; i--)
-            {
-                if (Math.Abs(Statistics.CorrelationCoefficient
-                    (chosenDataX[model.parametersIndexes[i]], chosenDataY[0])) < (double)numCorrelXY.Value)
-                    model.parametersIndexes.RemoveAt(i);
-            }
-        }
-
-        void BuildMatrixX(Model model)
-        {
-            model.X = new double[chosenDataX[0].Count, model.parametersIndexes.Count+1];
-            for (int i = 0; i < model.X.GetLength(0); i++)
-                model.X[i, 0] = 1;
-            for (int i = 0; i < model.X.GetLength(0); i++)
-                for (int j = 1; j < model.X.GetLength(1); j++)
-                    model.X[i, j] = chosenDataX[model.parametersIndexes[j-1]][i];
-        }
-        
-        bool CheckModelSignificance(Model model, bool isModified, double[] unchangedCoeffs)
-        {
-            double maxCoeff = 0;
-            for (int i = 1; i < model.coefficients.Length; i++)
-                if (Math.Abs(model.coefficients[i]) > maxCoeff)
-                    maxCoeff = Math.Abs(model.coefficients[i]);
-            if (maxCoeff < 0.000001)
-            {
-                unchangedCoeffs.CopyTo(model.coefficients, 0);
-                return model.isSignificant = false;                
-            }
-
-            model.PredictY();
-            model.determCoeff = Statistics.DeterminationCoefficient(model.Y, model.predictedY);
-            model.correctedDetermCoeff = Statistics.CorrectedDeterminationCoefficient(
-                model.Y, model.predictedY, model.parametersIndexes.Count);
-
-            double Ft, Ff;
-            int n = chosenDataY[0].Count;
-            int m = model.parametersIndexes.Count; // число параметров модели
-            Ff = (model.determCoeff / m) / ((1 - model.determCoeff) / (n - m - 1));
-
-            Chart c = new Chart();
-            Ft = c.DataManipulator.Statistics.InverseFDistribution(
-                double.Parse(cbAlpha.Text), m , n - m - 1);
-
-            model.isSignificant = Ff > Ft;
-
-            if (!model.isSignificant && !isModified)
-            {
-                CheckCoefficientsSignificance(model, unchangedCoeffs);
-            }
-
-            return model.isSignificant;
-        }
-
-        void CheckCoefficientsSignificance(Model model, double[] unchangedCoeffs)
-        {
-            List<int> insignificantCoeffsIndexes = new List<int>();
-
-            for (int i =0; i<model.parametersIndexes.Count; i++)
-            {
-                bool isSignificant = true;
-                double SSres = model.Y.Zip(model.predictedY, (y, p) => Math.Pow(y - p, 2.0)).Sum();
-                int n = chosenDataY[0].Count;
-                int m = model.parametersIndexes.Count;
-                // стандартная ошибка
-                double sigma = SSres / (n - m - 1);
-                // стандартная ошибка оценки i+1-го коэф-та
-                double S_bi = Math.Sqrt(model.XTXinv[i+1, i+1] * sigma);
-                // вычисленное значение Т-статистики
-                double Tf = model.coefficients[i + 1] / S_bi;
-                Chart c = new Chart();
-                // табличное значение Т-статистики
-                double Tt = c.DataManipulator.Statistics.InverseTDistribution(double.Parse(cbAlpha.Text), n - m - 1);
-                isSignificant = Tf > Tt;
-
-                if (!isSignificant)
-                    insignificantCoeffsIndexes.Add(i);
-            }
-
-            ModifyModel(model, insignificantCoeffsIndexes, 0, unchangedCoeffs);
-        }
-
-        void ModifyModel(Model model, List<int> coeffsIndexes, int idx, double[] unchangedCoeffs)
-        {
-            if (idx == coeffsIndexes.Count || CheckModelSignificance(model, true, unchangedCoeffs))
-                return;
-
-            double coeff = model.coefficients[coeffsIndexes[idx]];
-            model.coefficients[coeffsIndexes[idx]] = 0;
-            ModifyModel(model, coeffsIndexes, idx + 1, unchangedCoeffs);
-
-            if (model.isSignificant)
-                return;
-
-            model.coefficients[coeffsIndexes[idx]] = coeff;
-            ModifyModel(model, coeffsIndexes, idx + 1, unchangedCoeffs);            
-        }
-
+ 
         void PrintModelInfo(Model model)
         {
             if (model == null)
@@ -284,74 +129,7 @@ namespace MultipleLinearRegression
                 );                       
         }
 
-        bool AreArraysIdentical(List<int> arr1, List<int> arr2)
-        {
-            for (int i = 0; i < arr1.Count; i++)
-                if (arr1[i] != arr2[i])
-                    return false;
-            return true;
-        }
-
-        void RemoveIdenticalModels()
-        {
-            for (int i=0; i< models.Count; i++)
-            {
-                for (int j=i+1; j< models.Count; j++)
-                {
-                    if (AreArraysIdentical(models[i].parametersIndexes, models[j].parametersIndexes))
-                    {
-                        models.RemoveAt(j--);                      
-                    }
-                }
-            }
-        }
-
-        void RemoveModelsWithoutParameters()
-        {
-            for (int i=0; i<models.Count; i++)
-            {
-                if (models[i].parametersIndexes.Count == 0)
-                {
-                    models.RemoveAt(i--);
-                }
-            }
-        }
-
-        void FindBestModels()
-        {
-            bestModel = robustModel = null;
-            foreach (var model in models)
-            {
-                model.correctedDetermCoeffsArray = new double[numberOfPeriods];
-                for (int i = 0; i < numberOfPeriods; i++)
-                    model.GetAnnualInfo(i, numberOfRegions);
-                model.avgCorrectedDetermCoeff = model.correctedDetermCoeffsArray.Average();
-                model.variationCoeff = 
-                    Statistics.VariationCoeff(model.correctedDetermCoeffsArray);
-            }
-
-            foreach (var model in models)
-            {
-                if (model.isSignificant)
-                {
-                    bestModel = robustModel = model;
-                    break;
-                }
-                if (model == models.Last())
-                    return;
-            }
-            
-            foreach (var model in models)
-            {
-                if (!model.isSignificant)
-                    continue;
-                if (model.avgCorrectedDetermCoeff > bestModel.avgCorrectedDetermCoeff)
-                    bestModel = model;
-                if (model.variationCoeff < robustModel.variationCoeff)
-                    robustModel = model;
-            }
-
-        }
+        
         
         void Calculate()
         {
@@ -370,35 +148,31 @@ namespace MultipleLinearRegression
             {
                 // сохраняем начальные значения Xi 
                 initialChosenDataX = chosenDataX.Select(Xi => Xi.ToList()).ToList();
-                nonLinearRegression = new NonLinearRegression(
-                    cbIterationsCount.Text == "max" ? int.MaxValue :
-                    int.Parse(cbIterationsCount.Text),
-                    (double)numDeltaR.Value);
-                nonLinearRegression.GenerateFunctions();
+                NonLinearRegression.maxIter =
+                    cbIterationsCount.Text == "max" ? int.MaxValue : int.Parse(cbIterationsCount.Text);
+                NonLinearRegression.eps = (double)numDeltaR.Value;
+                NonLinearRegression.GenerateFunctions();
                 // данные Х преобразованы
-                nonLinearRegression.Calculate(ref chosenDataX, chosenDataY[0]);
+                NonLinearRegression.Calculate(ref chosenDataX, chosenDataY[0]);
             }
 
-            CreateGroupsOfCorrelatedParameters(chosenDataX);
+            groupsOfCorrelatedParameters =
+                Solver.CreateGroupsOfCorrelatedParameters(chosenDataX, (double)numCorrelX.Value);
 
             models = new List<Model>();
-            CreateModels(0, new List<int>());
+            Solver.CreateModels(groupsOfCorrelatedParameters, 0, new List<int>(), models);
 
-            double[] Y = new double[chosenDataY[0].Count];
-            for (int i = 0; i < Y.Length; i++)
-                Y[i] = chosenDataY[0][i];
+            double[] Y = chosenDataY[0].ToArray();
+
+            foreach (var model in models)
+                model.RemoveInsignificantParameters(chosenDataX, chosenDataY, (double)numCorrelXY.Value);
+            
+            Solver.RemoveModelsWithoutParameters(models);
+            Solver.RemoveIdenticalModels(models);
 
             foreach (var model in models)
             {
-                RemoveInsignificantParameters(model);
-            }
-
-            RemoveModelsWithoutParameters();
-            RemoveIdenticalModels();
-
-            foreach (var model in models)
-            {
-                BuildMatrixX(model);
+                model.BuildMatrixX(chosenDataX);
                 model.Y = Y;
                 model.BuildEquation();
                 model.PredictY();
@@ -410,13 +184,16 @@ namespace MultipleLinearRegression
                 {
                     double[] unchangedCoeffs = new double[model.coefficients.Length];
                     Array.Copy(model.coefficients, unchangedCoeffs, unchangedCoeffs.Length);
-                    CheckModelSignificance(model, false, unchangedCoeffs);
+                    model.CheckModelSignificance(
+                        false, unchangedCoeffs, chosenDataY, double.Parse(cbAlpha.Text));
                 }
 
                 PrintModelInfo(model);                         
             }
 
-            FindBestModels();
+            var tmp = Solver.FindBestModels(models, numberOfPeriods, numberOfRegions);
+            bestModel = tmp.bestModel;
+            robustModel = tmp.robustModel;
         }
 
         private void btAddX_Click(object sender, EventArgs e)
@@ -516,13 +293,12 @@ namespace MultipleLinearRegression
 
         void ControlCalculations()
         {
-            nonLinearRegression.chosenForControlModel = chosenForControlModel;
-            nonLinearRegression.ReadMutualInfluenceData(chosenForControlModel.parametersIndexes);
-            nonLinearRegression.FillMatrixX(initialChosenDataX, chosenForControlModel.parametersIndexes);
-            nonLinearRegression.CreateModels();
-            //nonLinearRegression.FindParamsLimits((int)numK.Value, (int)numPercents.Value);
+            NonLinearRegression.chosenForControlModel = chosenForControlModel;
+            NonLinearRegression.ReadMutualInfluenceData(chosenForControlModel.parametersIndexes);
+            NonLinearRegression.FillMatrixX(initialChosenDataX, chosenForControlModel.parametersIndexes);
+            NonLinearRegression.CreateModels();
             CheckRangeWidth();
-            nonLinearRegression.InitializeState(chosenDataY[0][0]);
+            NonLinearRegression.InitializeState(chosenDataY[0][0]);
         }
 
         private void btBack_Click(object sender, EventArgs e)
@@ -592,8 +368,8 @@ namespace MultipleLinearRegression
         void UpdateLimits()
         {
             var paramIdx = parameterIdxFromName[lbParams.Text];
-            lblLeftLimit.Text =  FormatValue(nonLinearRegression.paramsLimits[paramIdx].Item1);
-            lblRightLimit.Text = FormatValue(nonLinearRegression.paramsLimits[paramIdx].Item2);
+            lblLeftLimit.Text =  FormatValue(NonLinearRegression.paramsLimits[paramIdx].Item1);
+            lblRightLimit.Text = FormatValue(NonLinearRegression.paramsLimits[paramIdx].Item2);
         }
 
         private void lbParams_SelectedIndexChanged(object sender, EventArgs e)
@@ -602,12 +378,12 @@ namespace MultipleLinearRegression
             {
                 lbDependentParams.Items.Clear();
                 var paramIdx = parameterIdxFromName[lbParams.Text];
-                foreach (var dependentParamIdx in nonLinearRegression.modelsX[paramIdx].dependentParamsIdxs)
+                foreach (var dependentParamIdx in NonLinearRegression.modelsX[paramIdx].dependentParamsIdxs)
                     lbDependentParams.Items.Add(parameterNameFromIdx[dependentParamIdx]);
                 UpdateLimits();
 
-                tbNewXValue.Text = FormatValue(nonLinearRegression.stateX[paramIdx]);
-                lblNewYValue.Text = FormatValue(nonLinearRegression.stateY);
+                tbNewXValue.Text = FormatValue(NonLinearRegression.stateX[paramIdx]);
+                lblNewYValue.Text = FormatValue(NonLinearRegression.stateY);
             }
             catch(Exception) { return; }
         }
@@ -626,7 +402,7 @@ namespace MultipleLinearRegression
                     epValueOutOfRange.SetError(tbNewXValue, "Неверный формат данных!");
                     return;
                 }
-                if (!nonLinearRegression.IsInInterval(
+                if (!NonLinearRegression.IsInInterval(
                     double.Parse(tbNewXValue.Text),
                     double.Parse(lblLeftLimit.Text),
                     double.Parse(lblRightLimit.Text)))
@@ -635,53 +411,53 @@ namespace MultipleLinearRegression
                     epValueOutOfRange.Dispose();
 
                 var paramIdx = parameterIdxFromName[lbParams.Text];
-                nonLinearRegression.stateX[paramIdx] = double.Parse(tbNewXValue.Text);
+                NonLinearRegression.stateX[paramIdx] = double.Parse(tbNewXValue.Text);
                 // если следующий параметр зависит от текущего и/или предыдущих, вычисляем его новое значение
                 // и проверяем, что оно находится в ОДЗ
-                foreach (var dependentParamIdx in nonLinearRegression.modelsX[paramIdx].dependentParamsIdxs)
+                foreach (var dependentParamIdx in NonLinearRegression.modelsX[paramIdx].dependentParamsIdxs)
                 {
                     // значения параметров, от которых зависит следующий параметр текущего аааааааа
                     var paramsValues = new List<double>();
-                    foreach (var pIdx in nonLinearRegression.modelsX[dependentParamIdx].parametersIndexes)
-                        paramsValues.Add(nonLinearRegression.stateX[pIdx]);
-                    nonLinearRegression.stateX[dependentParamIdx] =
-                        nonLinearRegression.modelsX[dependentParamIdx].
+                    foreach (var pIdx in NonLinearRegression.modelsX[dependentParamIdx].parametersIndexes)
+                        paramsValues.Add(NonLinearRegression.stateX[pIdx]);
+                    NonLinearRegression.stateX[dependentParamIdx] =
+                        NonLinearRegression.modelsX[dependentParamIdx].
                         GetPredictedYForVector(paramsValues.ToArray());
-                    if (nonLinearRegression.modelsX[dependentParamIdx].paramsLimits.ContainsKey(paramIdx))
-                        nonLinearRegression.paramsLimits[dependentParamIdx] =
-                            nonLinearRegression.modelsX[dependentParamIdx].paramsLimits[paramIdx];
+                    if (NonLinearRegression.modelsX[dependentParamIdx].paramsLimits.ContainsKey(paramIdx))
+                        NonLinearRegression.paramsLimits[dependentParamIdx] =
+                            NonLinearRegression.modelsX[dependentParamIdx].paramsLimits[paramIdx];
                     // проверка на принадлежность ОДЗ
-                    if (!nonLinearRegression.IsInInterval(nonLinearRegression.stateX[dependentParamIdx],
-                        nonLinearRegression.paramsLimits[dependentParamIdx].Item1,
-                        nonLinearRegression.paramsLimits[dependentParamIdx].Item2))
+                    if (!NonLinearRegression.IsInInterval(NonLinearRegression.stateX[dependentParamIdx],
+                        NonLinearRegression.paramsLimits[dependentParamIdx].Item1,
+                        NonLinearRegression.paramsLimits[dependentParamIdx].Item2))
                         epValueOutOfRange.SetError(tbNewXValue,
                             "Зависимые параметры выходят за допустимые границы");
                     else
-                        nonLinearRegression.NarrowRange(dependentParamIdx, paramIdx);
+                        NonLinearRegression.NarrowRange(dependentParamIdx, paramIdx);
                 }
-                nonLinearRegression.TransformX();
-                nonLinearRegression.stateY = 
-                    chosenForControlModel.GetPredictedYForVector(nonLinearRegression.transformedX.ToArray());
-                lblNewYValue.Text = FormatValue(nonLinearRegression.stateY);
+                NonLinearRegression.TransformX();
+                NonLinearRegression.stateY = 
+                    chosenForControlModel.GetPredictedYForVector(NonLinearRegression.transformedX.ToArray());
+                lblNewYValue.Text = FormatValue(NonLinearRegression.stateY);
             }
             catch(Exception) { return; }
         }
 
         void CheckRangeWidth()
         {
-            var ok = nonLinearRegression.FindParamsLimits((int)numK.Value, (int)(numPercents.Value));
+            var ok = NonLinearRegression.FindParamsLimits((int)numK.Value, (int)(numPercents.Value));
             if (!ok)
                 epTooWideRange.SetError(numPercents, "Интервал выходит за допустимые границы!");
             else
                 epTooWideRange.Dispose();
             if (lbParams.SelectedItems.Count != 0)
                 UpdateLimits();
-            foreach (var pIdx in nonLinearRegression.chosenForControlModel.parametersIndexes)
+            foreach (var pIdx in NonLinearRegression.chosenForControlModel.parametersIndexes)
             {
-                foreach (var prevParamIdx in nonLinearRegression.modelsX[pIdx].parametersIndexes)
+                foreach (var prevParamIdx in NonLinearRegression.modelsX[pIdx].parametersIndexes)
                 {
-                    nonLinearRegression.modelsX[pIdx].paramsLimits[prevParamIdx] =
-                        nonLinearRegression.paramsLimits[pIdx];
+                    NonLinearRegression.modelsX[pIdx].paramsLimits[prevParamIdx] =
+                        NonLinearRegression.paramsLimits[pIdx];
                 }
             }
         }

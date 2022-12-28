@@ -240,7 +240,6 @@
             this.cbIsRegressionNonLinear.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.cbIsRegressionNonLinear.FormattingEnabled = true;
             this.cbIsRegressionNonLinear.Items.AddRange(new object[] {
-            "Нет",
             "Да"});
             this.cbIsRegressionNonLinear.Location = new System.Drawing.Point(150, 204);
             this.cbIsRegressionNonLinear.Name = "cbIsRegressionNonLinear";
@@ -321,9 +320,9 @@
             this.tpParameters.Controls.Add(this.lbY);
             this.tpParameters.Controls.Add(this.lbX);
             this.tpParameters.Controls.Add(this.lbAllParameters);
-            this.tpParameters.Location = new System.Drawing.Point(4, 14);
+            this.tpParameters.Location = new System.Drawing.Point(4, 5);
             this.tpParameters.Name = "tpParameters";
-            this.tpParameters.Size = new System.Drawing.Size(705, 316);
+            this.tpParameters.Size = new System.Drawing.Size(705, 325);
             this.tpParameters.TabIndex = 2;
             this.tpParameters.Text = "Выбор факторов";
             this.tpParameters.UseVisualStyleBackColor = true;
@@ -398,9 +397,9 @@
             // tpResults
             // 
             this.tpResults.Controls.Add(this.splitContainer1);
-            this.tpResults.Location = new System.Drawing.Point(4, 14);
+            this.tpResults.Location = new System.Drawing.Point(4, 5);
             this.tpResults.Name = "tpResults";
-            this.tpResults.Size = new System.Drawing.Size(705, 316);
+            this.tpResults.Size = new System.Drawing.Size(705, 325);
             this.tpResults.TabIndex = 3;
             this.tpResults.Text = "Итоги";
             this.tpResults.UseVisualStyleBackColor = true;
@@ -493,10 +492,10 @@
             this.tpControl.Controls.Add(this.label10);
             this.tpControl.Controls.Add(this.lblLeftLimit);
             this.tpControl.Controls.Add(this.lbParams);
-            this.tpControl.Location = new System.Drawing.Point(4, 14);
+            this.tpControl.Location = new System.Drawing.Point(4, 5);
             this.tpControl.Name = "tpControl";
             this.tpControl.Padding = new System.Windows.Forms.Padding(3);
-            this.tpControl.Size = new System.Drawing.Size(705, 316);
+            this.tpControl.Size = new System.Drawing.Size(705, 325);
             this.tpControl.TabIndex = 4;
             this.tpControl.Text = "Управление";
             this.tpControl.UseVisualStyleBackColor = true;

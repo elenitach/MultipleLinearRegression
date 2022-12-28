@@ -8,29 +8,23 @@ namespace MultipleLinearRegression
     class NonLinearRegression
     {
         // все возможные функции
-        public List<Func<double, double>> functions = new List<Func<double, double>>();
+        public static List<Func<double, double>> functions = new List<Func<double, double>>();
         // последовательность примененных для преобразования функций (для каждого Хi)
-        public List<List<Func<double, double>>> functionsSequencesForAllXi =
+        public static List<List<Func<double, double>>> functionsSequencesForAllXi =
             new List<List<Func<double, double>>>();
-        List<List<double>> newX = new List<List<double>>();
-        int maxIter;
-        double eps;
-        List<List<bool>> mutualInfluenceMatrix;
-        public Dictionary<int, Tuple<double, double>> paramsLimits; // paramIdx, leftLimit, rightLimit
-        public Model chosenForControlModel;
-        List<Tuple<int, List<double>>> initialModelX; // X управляемой модели: глобальный индекс + Xi
-        public Dictionary<int, Model> modelsX; // модели для каждого Хi
-        public Dictionary<int, double> stateX; // текущие значения параметров Xi
-        public double stateY; // текущее значение Y
-        public List<double> transformedX; // преобразованные значения Х
-
-        public NonLinearRegression(int maxIter, double eps)
-        {
-            this.maxIter = maxIter;
-            this.eps = eps;
-        }
-        
-        public bool FindParamsLimits(int k, int percents)
+        public static List<List<double>> newX = new List<List<double>>();
+        public static int maxIter;
+        public static double eps;
+        public static List<List<bool>> mutualInfluenceMatrix;
+        public static Dictionary<int, Tuple<double, double>> paramsLimits; // paramIdx, leftLimit, rightLimit
+        public static Model chosenForControlModel;
+        public static List<Tuple<int, List<double>>> initialModelX; // X управляемой модели: глобальный индекс + Xi
+        public static Dictionary<int, Model> modelsX; // модели для каждого Хi
+        public static Dictionary<int, double> stateX; // текущие значения параметров Xi
+        public static double stateY; // текущее значение Y
+        public static List<double> transformedX; // преобразованные значения Х
+                
+        public static bool FindParamsLimits(int k, int percents)
         {
             paramsLimits = new Dictionary<int, Tuple<double, double>>();
             var ok = true;
@@ -60,7 +54,7 @@ namespace MultipleLinearRegression
             return ok;
         }
 
-        public void GenerateFunctions()
+        public static void GenerateFunctions()
         {
             var positiveAlphas = new[] {
                 0.001, 0.01, 0.1, 0.5, 1,
@@ -91,7 +85,7 @@ namespace MultipleLinearRegression
             }
         }
 
-        public void Calculate(ref List<List<double>> X, List<double> Y)
+        public static void Calculate(ref List<List<double>> X, List<double> Y)
         {
             foreach (var Xi in X)
             {
@@ -104,7 +98,7 @@ namespace MultipleLinearRegression
             X = newX; // теперь данные в исходной программе преобразованы
         }
 
-        public void CalculateForXi(List<double> Xi, List<double> Y, int iter, 
+        public static void CalculateForXi(List<double> Xi, List<double> Y, int iter, 
             double previousRxy, List<Func<double, double>> functionsSequence)
         {
             if (iter > maxIter)
@@ -145,7 +139,7 @@ namespace MultipleLinearRegression
             }
         }
 
-        public void ReadMutualInfluenceData(List<int> paramsIndexes)
+        public static void ReadMutualInfluenceData(List<int> paramsIndexes)
         {
             using (var sr = new StreamReader("Матрица взаимовлияний.txt"))
             {
@@ -185,7 +179,7 @@ namespace MultipleLinearRegression
         }
 
         // из начальной матрицы выбранных параметров берем те параметры, которые входят в модель
-        public void FillMatrixX(List<List<double>> initialX, List<int> paramsIndexes)
+        public static void FillMatrixX(List<List<double>> initialX, List<int> paramsIndexes)
         {
             initialModelX = new List<Tuple<int, List<double>>>();
             foreach (var idx in paramsIndexes)
@@ -193,7 +187,7 @@ namespace MultipleLinearRegression
         }
 
         // составляем уравнения зависимости параметров
-        public void CreateModels()
+        public static void CreateModels()
         {
             modelsX = new Dictionary<int, Model>();
             for(int k=0; k<initialModelX.Count; k++)
@@ -223,7 +217,7 @@ namespace MultipleLinearRegression
             }
         }
 
-        public void TransformX()
+        public static void TransformX()
         {
             transformedX = new List<double>();
             foreach (var pIdx in chosenForControlModel.parametersIndexes)
@@ -232,7 +226,7 @@ namespace MultipleLinearRegression
         }
 
         // получаем преобразованное значение Xi
-        public double GetTransformedValue(int paramIdx, double x, double[] X)
+        public static double GetTransformedValue(int paramIdx, double x, double[] X)
         {
             var transformed_x = x;
             var newX = X.ToArray();
@@ -250,7 +244,7 @@ namespace MultipleLinearRegression
             return transformed_x;
         }
 
-        public void InitializeState(double y)
+        public static void InitializeState(double y)
         {
             stateX = new Dictionary<int, double>();
             foreach (var paramIdx in paramsLimits.Keys)
@@ -261,12 +255,12 @@ namespace MultipleLinearRegression
             stateY = y;
         }
 
-        public bool IsInInterval(double value, double left, double right)
+        public static bool IsInInterval(double value, double left, double right)
         {
             return value > left && value < right;
         }
 
-        public List<int> DependentParamsInIncorrectRanges(int paramIdx)
+        public static List<int> DependentParamsInIncorrectRanges(int paramIdx)
         {
             var paramsOutOfRange = new List<int>();
             foreach (var dependentParamIdx in modelsX[paramIdx].dependentParamsIdxs)
@@ -278,7 +272,7 @@ namespace MultipleLinearRegression
         }
 
         // сужает диапазон изменения параметра
-        public void NarrowRange(int paramIdx, int influencingParamIdx)
+        public static void NarrowRange(int paramIdx, int influencingParamIdx)
         {
             var left = modelsX[paramIdx].paramsLimits[influencingParamIdx].Item1;// initialParamsLimits[paramIdx].Item1;
             var right = modelsX[paramIdx].paramsLimits[influencingParamIdx].Item2;//initialParamsLimits[paramIdx].Item2;

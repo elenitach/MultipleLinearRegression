@@ -49,7 +49,7 @@ namespace MultipleLinearRegression
             return Math.Sqrt(CentralMoment(list, 2.0));
         }
 
-        public static double VariationCoeff(double[] list)
+        public static double VariationCoefficient(double[] list)
         {
             return StandardDeviation(list) / (list.Average());
         }
